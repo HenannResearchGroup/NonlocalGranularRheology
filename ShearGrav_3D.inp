@@ -1,0 +1,350 @@
+************************************************************************
+*Heading
+3D linear shear with gravity
+************************************************************************
+**
+** Note: Abaqus has no built-in units. It is the
+** user's responsibility to use compatible units.
+**
+**       Units used in this problem, SI:
+**                  Length               --- meters - m
+**                  Time                 --- seconds - s
+**                  Mass                 --- kilograms - kg
+**                  Force                --- Newton - N
+**                  Stress               --- Pascal - Pa = N/(m)^2 
+**                  Energy               --- Joule - J = N*m
+**                  Density              --- kg/m^3
+**
+** David L. Henann, June 2015; Implemented in Abaqus 6.12-1
+**
+************************************************************************
+**			PARAMETERS
+************************************************************************
+*Parameter
+**
+** depth of cell (m)
+h = 0.020
+**
+** elastic moduli (Pa)
+G = 0.5e7
+K = 2.0e7
+** 
+** grain size (m)
+d = 0.001
+**
+** grain density (kg/m^3)
+rhos = 2450.
+**
+** glass bead properties (dimensionless)
+mus = 0.3819
+b = 0.9377
+A = 0.48
+**
+** solid volume fraction (dimensionless)
+volfrac = 0.62
+**
+** acceleration of gravity (m/s^2)
+gravity = 9.81
+**
+** gravitational body force (N/m^3)
+bz = -volfrac*rhos*gravity
+**
+** normalized total shear displacement (dimensionless)
+deltaNorm = 1.0
+**
+** total shear displacement (m)
+delta = deltaNorm*d
+**
+** normalized plate velocity (dimensionless)
+vNorm = 1.e-3
+**
+** plate velocity (m/s)
+v = vNorm*sqrt(gravity*d)
+**
+** normalized pressure (dimensionless)
+pNorm = 6.67
+**
+** pressure (Pa)
+p = pNorm*volfrac*rhos*gravity*d
+**
+** total simulation time (seconds)
+tf = delta/v
+**
+** number of elements in the z direction
+ez = 60
+**
+** width of section (m)
+w = h/ez
+**
+** max shear displacement increment
+deltadeltamax = 0.005
+deltatmax = tf*deltadeltamax/deltaNorm
+**
+************************************************************************
+** calculations for geometry, node numbering, loads, etc., don't change
+**
+** node/element numbering
+nlayer = 4
+**
+n1 = 1
+n2 = n1 + 1
+n3 = n2 + 1
+n4 = n3 + 1
+n5 = 1 + ez*(n4 - n1 + 1) + (n1 - 1)
+n6 = n5 + 1
+n7 = n6 + 1
+n8 = n7 + 1
+e1 = 1
+e2 = ez + (e1 - 1)
+**
+elmas1 = n1
+elmas2 = n1 + 1
+elmas3 = n3 + 1
+elmas4 = n3
+elmas5 = n1 + nlayer
+elmas6 = n1 + 1 + nlayer
+elmas7 = n3 + 1 + nlayer
+elmas8 = n3 + nlayer
+**
+e1dum = e2 + 1
+e2dum = ez + (e1dum - 1)
+**
+************************************************************************
+**			MODEL DEFINITION
+************************************************************************
+**
+** Nodes
+**
+*Node
+<n1>,  0.0,   0.0,   0.0
+<n2>,  <w>,   0.0,   0.0
+<n3>,  0.0,   <w>,   0.0
+<n4>,  <w>,   <w>,   0.0
+<n5>,  0.0,   0.0,   <h>
+<n6>,  <w>,   0.0,   <h>
+<n7>,  0.0,   <w>,   <h>
+<n8>,  <w>,   <w>,   <h>
+*Nset, nset=n1
+<n1>
+*Nset, nset=n2
+<n2>
+*Nset, nset=n3
+<n3>
+*Nset, nset=n4
+<n4>
+*Nset, nset=n5
+<n5>
+*Nset, nset=n6
+<n6>
+*Nset, nset=n7
+<n7>
+*Nset, nset=n8
+<n8>
+*Nfill, nset=edge00
+n1, n5, <ez>, <nlayer>
+*Nfill, nset=edge10
+n2, n6, <ez>, <nlayer>
+*Nfill, nset=edge01
+n3, n7, <ez>, <nlayer>
+*Nfill, nset=edge11
+n4, n8, <ez>, <nlayer>
+*Nset, nset=bottom
+n1, n2, n3, n4
+*Nset, nset=top
+n5, n6, n7, n8
+*Nset, nset=nall
+edge00, edge10, edge01, edge11
+**
+** Elements
+**
+*User Element,Nodes=8,Type=U1,Iproperties=1,Properties=7,Coordinates=3,Variables=72,Unsymm
+1,2,3,11
+**
+*Element, type=U1
+<e1>, <elmas1>,<elmas2>,<elmas3>,<elmas4>,<elmas5>,<elmas6>,<elmas7>,<elmas8>
+*Elgen, elset=elall
+<e1>,1,1,1,<ez>,<nlayer>,1
+**
+** Make the dummy mesh, shares nodes with the real mesh,
+**  allows visualization of the results, access to 
+**  hourglass controls, and access to mechanical, 
+**  traction-type boundary conditions
+**
+*Element, type=C3D8
+<e1dum>, <elmas1>,<elmas2>,<elmas3>,<elmas4>,<elmas5>,<elmas6>,<elmas7>,<elmas8>
+*Elgen, elset=ElDummy
+<e1dum>,1,1,1,<ez>,<nlayer>,1
+**
+** Make a dummy element which is not connected to anything with CPE4T
+**  just so that we can have the coupled thermal-displacement
+**
+*Node, nset=tempElement
+999992,  0.0, 0.0, 0.0
+999993,  .00001, 0.0, 0.0
+999994,  .00001, .00001, 0.0
+999995,  0.0, .00001, 0.0
+999996,  0.0, 0.0, 0.00001
+999997,  .00001, 0.0, 0.00001
+999998,  .00001, .00001, 0.00001
+999999,  0.0, .00001, 0.00001
+*Element, Type=C3D8RT, elset=tempElement
+999999,999992,999993,999994,999995,999996,999997,999998,999999
+************************************************************************
+**			MATERIAL DEFINITION
+************************************************************************
+**
+** Material properties for the real material
+**
+*uel property,elset=elall
+*******************************************************************
+<G>,	<K>,	<rhos>,	<d>,	<mus>,	<b>,	<A>,	1
+**
+*******************************************************************
+**
+** Dummy mesh material properties
+**
+*Solid section, elset=ElDummy, material=Material-1
+*Solid section, elset=tempElement, material=Material-2
+**
+*Material, name=Material-1
+*User output variables
+8
+** The dummy mesh stiffness is very small
+*Elastic
+1.e-20
+*Density
+1.0
+**
+*Material, name=Material-2
+*Elastic
+1.e-20
+*Conductivity
+1.0
+*Density
+1.0
+*Specific heat
+1.0
+************************************************************************
+**			INITIAL CONDITIONS
+************************************************************************
+*Initial conditions, type=temperature
+Nall, 0.0
+tempElement, 0.0
+************************************************************************
+**			   CONSTRAINTS
+************************************************************************
+*Equation
+2
+edge00,1,-1.
+edge11,1,1.
+2
+edge00,2,-1.
+edge11,2,1.
+2
+edge00,3,-1.
+edge11,3,1.
+2
+edge00,11,-1.
+edge11,11,1.
+2
+edge10,1,-1.
+edge11,1,1.
+2
+edge10,2,-1.
+edge11,2,1.
+2
+edge10,3,-1.
+edge11,3,1.
+2
+edge10,11,-1.
+edge11,11,1.
+2
+edge01,1,-1.
+edge11,1,1.
+2
+edge01,2,-1.
+edge11,2,1.
+2
+edge01,3,-1.
+edge11,3,1.
+2
+edge01,11,-1.
+edge11,11,1.
+************************************************************************
+**			   AMPLITUDE
+************************************************************************
+*Amplitude, name=Amp-1
+0.0, 0.0, <tf>, <delta>
+************************************************************************
+**			STEP DEFINITION
+************************************************************************
+*Step, Name=compress, nlgeom=yes, inc=50000
+*Coupled temperature-displacement, deltmx=0.01
+1.0,1.0,1.e-10,1.0
+*CONTROLS, PARAMETERS=LINE SEARCH
+10,1.0,0.0001,0.25,0.10
+*CONTROLS, PARAMETERS=TIME INCREMENTATION
+,,,,,,,10,,,,,,
+*CONTROLS, PARAMETERS=FIELD, FIELD=DISPLACEMENT
+0.0005,0.001,1.0e-8
+*CONTROLS, PARAMETERS=FIELD, FIELD=TEMPERATURE
+0.0005,0.001,1.0e-8
+**
+*Boundary
+n4,1,3
+n8,1,2
+*Boundary
+tempElement,encastre
+tempElement,11,11,0.0
+*Dload
+ElDummy,BZ,<bz>
+<e2dum>,P2,<p>
+**
+*Output, field, frequency=1
+*node output, nset=nall
+u,nt
+*Element output, elset=eldummy
+uvarm,le
+**
+*Output, history, frequency=1
+*node output, nset=n8
+u,rf
+**
+*End Step
+************************************************************************
+*Step, Name=Shear, nlgeom=yes, inc=50000
+*Coupled temperature-displacement, deltmx=0.01
+1.e-4,<tf>,1.e-10,<deltatmax>
+*CONTROLS, PARAMETERS=LINE SEARCH
+10,1.0,0.0001,0.25,0.10
+*CONTROLS, PARAMETERS=TIME INCREMENTATION
+,,,,,,,10,,,,,,
+*CONTROLS, PARAMETERS=FIELD, FIELD=DISPLACEMENT
+0.0005,0.001,1.0e-8
+*CONTROLS, PARAMETERS=FIELD, FIELD=TEMPERATURE
+0.0005,0.001,1.0e-8
+**
+*Boundary, op=new
+n4,1,3
+n8,1,1
+*Boundary, op=new, amplitude=Amp-1
+n8,2,2,1.0
+*Dload, op=new
+ElDummy,BZ,<bz>
+<e2dum>,P2,<p>
+*Boundary, op=new
+tempElement,encastre
+tempElement,11,11,0.0
+**
+*Output, field, frequency=10
+*node output, nset=nall
+u,nt
+*Element output, elset=eldummy
+uvarm,le
+**
+*Output, history, frequency=1
+*node output, nset=n8
+u,rf
+**
+*End Step
+************************************************************************

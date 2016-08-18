@@ -1,0 +1,279 @@
+************************************************************************
+*Heading
+Annular shear (generalized axisymmetric)
+************************************************************************
+**
+** Note: Abaqus has no built-in units. It is the
+** user's responsibility to use compatible units.
+**
+**       Units used in this problem, SI:
+**                  Length               --- meters - m
+**                  Time                 --- seconds - s
+**                  Mass                 --- kilograms - kg
+**                  Force                --- Newton - N
+**                  Stress               --- Pascal - Pa = N/(m)^2 
+**                  Energy               --- Joule - J = N*m
+**                  Density              --- kg/m^3
+**
+** David L. Henann, June 2015; Implemented in Abaqus 6.12-1
+**
+************************************************************************
+**			PARAMETERS
+************************************************************************
+*Parameter
+**
+** inner radius of cell (m)
+Ri = 0.060
+**
+** outer radius of cell (m)
+Ro = Ri + 0.020
+**
+** elastic moduli (Pa)
+G = 0.5e7
+K = 2.0e7
+** 
+** grain size (m)
+d = 0.001
+**
+** grain density (kg/m^3)
+rhos = 2450.
+**
+** glass bead properties (dimensionless)
+mus = 0.3819
+b = 0.9377
+A = 0.48
+**
+** outer surface pressure (N/m^2)
+p = 100.0
+**
+** total rotation angle (degrees)
+phid = 4.0
+**
+** total rotation angle (radians)
+phi = phid*(3.14159265/180)
+**
+** normalized rotation rate (dimensionless)
+omegaNorm = 1.e-3
+**
+** rotation rate (rad/s)
+omega = omegaNorm*sqrt(p/rhos)/Ri
+**
+** total simulation time (seconds)
+tf = phi/omega
+**
+** number of elements in the r direction
+er = 60
+**
+** depth (m)
+H = 0.020/er
+**
+** max angular increment (degrees)
+deltaphimax = 0.01
+deltatmax = tf*deltaphimax/phid
+**
+************************************************************************
+** calculations for geometry, node and element numbering, don't change
+**
+** node/element numbering
+n1 = 1
+n2 = n1 + er
+n3 = n2 + 1
+n4 = n3 + er
+e1 = 1
+e2 = er + (e1 - 1)
+**
+elmas1 = n1
+elmas2 = n1 + 1
+elmas3 = n3 + 1
+elmas4 = n3
+**
+e1dum = e2 + 1
+e2dum = er + (e1dum - 1)
+**
+************************************************************************
+**			MODEL DEFINITION
+************************************************************************
+**
+** Nodes
+**
+*Node
+<n1>,  <Ri>,  0.0
+<n2>,  <Ro>,  0.0
+<n3>,  <Ri>,  <H>
+<n4>,  <Ro>,  <H>
+*Nset, nset=n1
+<n1>
+*Nset, nset=n2
+<n2>
+*Nset, nset=n3
+<n3>
+*Nset, nset=n4
+<n4>
+*Nset, nset=left
+n1, n3
+*Nset, nset=right
+n2, n4
+*Nfill, nset=Nall
+left, right, <er>,1
+*Nset, nset=top, gen
+<n3>, <n4>, 1
+*Nset, nset=bottom, gen
+<n1>, <n2>, 1
+**
+** Elements
+**
+*User Element,Nodes=4,Type=U1,Iproperties=1,Properties=7,Coordinates=2,Variables=36,Unsymm
+1,2,5,11
+**
+*Element, type=U1
+<e1>, <elmas1>,<elmas2>,<elmas3>,<elmas4>
+*Elgen, elset=Elall
+<e1>,<er>,1,1,1
+**
+** Make the dummy mesh, shares nodes with the real mesh,
+**  allows visualization of the results, access to 
+**  hourglass controls, and access to mechanical loads
+**  such as body forces and tractions.
+**
+*Element, type=CGAX4
+<e1dum>, <elmas1>,<elmas2>,<elmas3>,<elmas4>
+*Elgen, elset=ElDummy
+<e1dum>,<er>,1,1,1
+**
+** Make a dummy element which is not connected to anything with CAX4T
+**  just so that the coupled thermal-displacement analysis is available.
+**
+*Node
+999996,  0.0, 0.0
+999997,  .00001, 0.0
+999998,  .00001, .00001
+999999,  0.0, .00001
+*Nset, nset=tempElement
+999996,999997,999998,999999
+*Element, Type=CAX4T
+999999,999996,999997,999998,999999
+*Elset,elset=tempElement
+999999
+************************************************************************
+**			MATERIAL DEFINITION
+************************************************************************
+**
+** Material properties for the real material
+**
+*uel property,elset=elall
+*******************************************************************
+<G>,	<K>,	<rhos>,	<d>,	<mus>,	<b>,	<A>,	1
+**
+*******************************************************************
+**
+** Dummy mesh material properties
+**
+*Solid section, elset=ElDummy, material=Material-1
+*Solid section, elset=tempElement, material=Material-2
+**
+*Material, name=Material-1
+*User output variables
+8
+** The dummy mesh stiffness is very small
+*Elastic
+1.e-20
+*Density
+1.0
+**
+*Material, name=Material-2
+*Elastic
+1.e-20
+*Conductivity
+1.0
+*Density
+1.0
+*Specific heat
+1.0
+************************************************************************
+**			INITIAL CONDITIONS
+************************************************************************
+*Initial conditions, type=temperature
+Nall, 0.0
+tempElement, 0.0
+************************************************************************
+**			   AMPLITUDE
+************************************************************************
+*Amplitude, name=Amp-1
+0.0, 0.0, <tf>, <phi>
+************************************************************************
+**			STEP DEFINITION
+************************************************************************
+*Step, Name=compress, nlgeom=yes, inc=50000
+*Coupled temperature-displacement, deltmx=0.01
+1.0,1.0,1.e-10,1.0
+*CONTROLS, PARAMETERS=LINE SEARCH
+10,1.0,0.0001,0.25,0.10
+*CONTROLS, PARAMETERS=TIME INCREMENTATION
+,,,,,,,10,,,,,,
+*CONTROLS, PARAMETERS=FIELD, FIELD=DISPLACEMENT
+0.0005,0.001,1.0e-8
+*CONTROLS, PARAMETERS=FIELD, FIELD=TEMPERATURE
+0.0005,0.001,1.0e-8
+**
+*Boundary
+left,1,1
+Nall,2,2
+Nall,5,5
+*Boundary
+tempElement,encastre
+tempElement,11,11,0.0
+*Dload
+<e2dum>,P2,<p>
+**
+*Output, field, frequency=1
+*node output, nset=Nall
+u,ur,nt
+*Element output, elset=eldummy
+uvarm,le
+**
+*Output, history, frequency=1
+*node output, nset=left
+u,rf
+*node output, nset=right
+u,rf
+**
+*End Step
+************************************************************************
+*Step, Name=Shear, nlgeom=yes, inc=50000
+*Coupled temperature-displacement, deltmx=0.01
+1.e-5,<tf>,1.e-10,<deltatmax>
+*CONTROLS, PARAMETERS=LINE SEARCH
+10,1.0,0.0001,0.25,0.10
+*CONTROLS, PARAMETERS=TIME INCREMENTATION
+,,,,,,,10,,,,,,
+*CONTROLS, PARAMETERS=FIELD, FIELD=DISPLACEMENT
+0.0005,0.001,1.0e-8
+*CONTROLS, PARAMETERS=FIELD, FIELD=TEMPERATURE
+0.0005,0.001,1.0e-8
+**
+*Boundary, op=new
+left,1,1
+Nall,2,2
+right,5,5
+*Boundary, op=new, amplitude=Amp-1
+left,5,5,1.0
+*Boundary, op=new
+tempElement,encastre
+tempElement,11,11,0.0
+*Dload
+<e2dum>,P2,<p>
+**
+*Output, field, frequency=10
+*node output, nset=nall
+u,ur,nt
+*Element output, elset=eldummy
+uvarm,le
+**
+*Output, history, frequency=1
+*node output, nset=left
+u,rf
+*node output, nset=right
+u,rf
+**
+*End Step
+************************************************************************
